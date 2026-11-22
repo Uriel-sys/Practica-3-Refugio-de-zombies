@@ -57,7 +57,7 @@ int agregar_superviviente(Refugio *r) {
     Superviviente nuevo;
     memset(&nuevo, 0, sizeof(Superviviente));
 
-    printf("Nombre del superviviente (max 30 caracteres): ");
+    printf("Nombre del superviviente: ");
     if (fgets(nuevo.nombre, sizeof(nuevo.nombre), stdin) == NULL) {
         printf("Error al leer el nombre.\n");
         return 0;
@@ -74,7 +74,7 @@ int agregar_superviviente(Refugio *r) {
         return 0;
     }
 
-    printf("Edad (mayor que 0): ");
+    printf("Edad: ");
     if (scanf("%d", &nuevo.edad) != 1 || nuevo.edad <= 0) {
         printf("Edad invalida: debe ser mayor que 0.\n");
         limpiar_buffer();
@@ -82,7 +82,7 @@ int agregar_superviviente(Refugio *r) {
     }
     limpiar_buffer();
 
-    printf("Habilidad especial (max 30 caracteres): ");
+    printf("Habilidad especial: ");
     if (fgets(nuevo.habilidad, sizeof(nuevo.habilidad), stdin) == NULL) {
         printf("Error al leer la habilidad especial.\n");
         return 0;
