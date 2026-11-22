@@ -406,6 +406,54 @@ char resumen[MAX_TEXTO_EVENTO + 1];
     }
     return 1;
 }
+
+void perder_recurso(Refugio *r, int tipo, int cantidad) {
+    if (r == NULL || cantidad <= 0) {
+        printf("Perdida de recurso invalida: refugio nulo o cantidad menor o igual a 0.\n");
+        return;
+    }
+
+    int *recurso_ptr = NULL;
+    const char *nombre_recurso = NULL;
+
+    switch (tipo) {
+        case RECURSO_AGUA:
+            recurso_ptr = &r->recursos.agua;
+            nombre_recurso = "agua";
+            break;
+        case RECURSO_COMIDA:
+            recurso_ptr = &r->recursos.comida;
+            nombre_recurso = "comida";
+            break;
+        case RECURSO_MEDICAMENTOS:
+            recurso_ptr = &r->recursos.medicamentos;
+            nombre_recurso = "medicamentos";
+            break;
+        case RECURSO_MUNICIONES:
+            recurso_ptr = &r->recursos.municiones;
+            nombre_recurso = "municiones";
+            break;
+        default:
+            printf("Tipo de recurso invalido (%d) en perdida de recurso.\n", tipo);
+            return;
+    }
+
+    int disponible = *recurso_ptr;
+    int perdido = (cantidad >= disponible) ? disponible : cantidad;
+    *recurso_ptr = disponible - perdido;
+    if (*recurso_ptr < 0) {
+        *recurso_ptr = 0;
+    }
+
+    char msg[MAX_TEXTO_EVENTO + 1];
+    snprintf(msg, sizeof(msg), "Perdida de %d de %.15s (quedan %d)",
+             perdido, nombre_recurso, *recurso_ptr);
+    registrar_evento(r, msg);
+
+    printf("Perdida registrada: se perdieron %d de %s (disponible ahora: %d).\n",
+           perdido, nombre_recurso, *recurso_ptr);
+}
+
 int main(void) {
     Refugio refugio;
     srand((unsigned int)time(NULL));
@@ -433,5 +481,11 @@ int main(void) {
     refugio.lista = NULL;
     free(refugio.historial);
     refugio.historial = NULL;
+    printf("\n--- (recurso perdido en medicamentos, inicial 10) ---\n");
+    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 4);  
+    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 6);  
+    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 15); 
+    mostrar_recursos(&refugio);
+    mostrar_historial(&refugio);
     return 0;
 }
