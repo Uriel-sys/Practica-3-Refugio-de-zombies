@@ -279,20 +279,77 @@ void mostrar_historial(const Refugio *r) {
     printf("..................................................\n");
 }
 
+int dar_de_baja(Refugio *r, const char *nombre) {
+    if (r == NULL || nombre == NULL || nombre[0] == '\0') {
+        printf("Baja invalida: refugio nulo o nombre vacio.\n");
+        return 0;
+    }
+
+    if (r->lista == NULL || r->n <= 0) {
+        printf("No hay supervivientes registrados para dar de baja a '%s'.\n", nombre);
+        return 0;
+    }
+
+    int indice = -1;
+    for (int i = 0; i < r->n; i++) {
+        if (strcmp(r->lista[i].nombre, nombre) == 0) {
+            indice = i;
+            break;
+        }
+    }
+
+    if (indice == -1) {
+        printf("Superviviente '%s' no encontrado. No se realizaron cambios.\n", nombre);
+        return 0;
+    }
+
+    char nombre_baja[31];
+    snprintf(nombre_baja, sizeof(nombre_baja), "%s", r->lista[indice].nombre);
+    for (int i = indice; i < r->n - 1; i++) {
+        r->lista[i] = r->lista[i + 1];
+    }
+    r->n--;
+
+    if (r->n == 0) {
+        free(r->lista);
+        r->lista = NULL;
+        r->capacidad = 0;
+    } else if (r->capacidad > 4 && r->n <= r->capacidad / 2) {
+        int nueva_cap = r->capacidad / 2;
+        if (nueva_cap < r->n) {
+            nueva_cap = r->n;
+        }
+        Superviviente *temp = realloc(r->lista, (size_t)nueva_cap * sizeof(Superviviente));
+        if (temp != NULL) {
+            r->lista = temp;
+            r->capacidad = nueva_cap;
+        }
+    }
+    char msg[MAX_TEXTO_EVENTO + 1];
+    snprintf(msg, sizeof(msg), "Baja de superviviente: %s", nombre_baja);
+    registrar_evento(r, msg);
+
+    return 1;
+}
+
 int main(void) {
     Refugio refugio;
     inicializar_refugio(&refugio);
-
+    printf("Baja inexistente -> %d\n", dar_de_baja(&refugio, "Fantasma"));
+    printf("\n--- Registro 1 (Uriel) ---\n");
+    agregar_superviviente(&refugio);
+    printf("\n--- Registro 2 (Jacobo) ---\n");
+    agregar_superviviente(&refugio);
+    printf("\n--- Registro 3 (Azul) ---\n");
+    agregar_superviviente(&refugio);
+    listar_supervivientes(&refugio);
+    printf("\nBaja primero -> %d\n", dar_de_baja(&refugio, "Uriel"));
+    listar_supervivientes(&refugio);
+    printf("\nBaja intermedio -> %d\n", dar_de_baja(&refugio, "Jacobo"));
+    listar_supervivientes(&refugio);
+    printf("\nBaja ultimo/unico -> %d\n", dar_de_baja(&refugio, "Azul"));
+    listar_supervivientes(&refugio);
     mostrar_historial(&refugio);
-
-    registrar_evento(&refugio, "Se abrio el refugio");
-    registrar_evento(&refugio, "Llegaron los primeros suministros y una muerte de un superviente");
-    refugio.dia_actual = 2;
-    registrar_evento(&refugio, "Se atendio al superviviente herido, recogieron los suministros");
-    refugio.dia_actual = 3;
-    registrar_evento(&refugio, "Un superviviente murio por falta de medicamentos, se perdio 3 suministros de comida y 2 de medicamentos");
-    mostrar_historial(&refugio);
-
     free(refugio.lista);
     refugio.lista = NULL;
     free(refugio.historial);
