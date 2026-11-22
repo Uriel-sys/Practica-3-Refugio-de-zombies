@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define RECURSO_AGUA 1
 #define RECURSO_COMIDA 2
@@ -331,9 +332,83 @@ int dar_de_baja(Refugio *r, const char *nombre) {
 
     return 1;
 }
+    int expedicion(Refugio *r) {
+    if (r == NULL || r->lista == NULL || r->n <= 0) {
+        printf("Expedicion cancelada: no hay supervivientes con salud mayor que 0.\n");
+        return 0;
+    }
 
+    int num_aptos = 0;
+    for (int i = 0; i < r->n; i++) {
+        if (r->lista[i].salud > 0) {
+            num_aptos++;
+        }
+    }
+
+    if (num_aptos == 0) {
+        printf("Expedicion cancelada: no hay supervivientes con salud mayor que 0.\n");
+        return 0;
+    }
+
+    int costo_municiones = 3;
+    if (!modificar_recurso(r, RECURSO_MUNICIONES, -costo_municiones)) {
+        printf("Expedicion cancelada: no alcanzan las municiones (%d requeridas).\n", costo_municiones);
+        return 0;
+    }
+
+    int objetivo = rand() % num_aptos;
+    int elegido_idx = -1;
+    int contador_aptos = 0;
+    for (int i = 0; i < r->n; i++) {
+        if (r->lista[i].salud > 0) {
+            if (contador_aptos == objetivo) {
+                elegido_idx = i;
+                break;
+            }
+            contador_aptos++;
+        }
+    }
+
+    if (elegido_idx < 0) {
+        return 0;
+    }
+
+    char nombre_expedicionario[31];
+    snprintf(nombre_expedicionario, sizeof(nombre_expedicionario), "%s", r->lista[elegido_idx].nombre);
+
+    int dano = 15 + (rand() % 21);
+    r->lista[elegido_idx].salud -= dano;
+    if (r->lista[elegido_idx].salud < 0) {
+        r->lista[elegido_idx].salud = 0;
+    }
+
+    int agua_ganada = 4;
+    int comida_ganada = 4;
+    modificar_recurso(r, RECURSO_AGUA, agua_ganada);
+    modificar_recurso(r, RECURSO_COMIDA, comida_ganada);
+
+    int desaparecio = (r->lista[elegido_idx].salud == 0) || ((rand() % 100) < 30);
+
+char resumen[MAX_TEXTO_EVENTO + 1];
+    if (desaparecio) {
+        snprintf(resumen, sizeof(resumen), "Exp: %.25s desaparecio (+%da/+%dc)",
+                 nombre_expedicionario, agua_ganada, comida_ganada);
+        registrar_evento(r, resumen);
+        dar_de_baja(r, nombre_expedicionario);
+        printf("Expedicion con baja: %s perdio %d salud y desaparecio. +%d agua, +%d comida.\n",
+               nombre_expedicionario, dano, agua_ganada, comida_ganada);
+    } else {
+        snprintf(resumen, sizeof(resumen), "Exp: %.25s -%d sal (+%da/+%dc)",
+                 nombre_expedicionario, dano, agua_ganada, comida_ganada);
+        registrar_evento(r, resumen);
+        printf("Expedicion exitosa: %s perdio %d salud (actual: %d). +%d agua, +%d comida.\n",
+               nombre_expedicionario, dano, r->lista[elegido_idx].salud, agua_ganada, comida_ganada);
+    }
+    return 1;
+}
 int main(void) {
     Refugio refugio;
+    srand((unsigned int)time(NULL));
     inicializar_refugio(&refugio);
     printf("Baja inexistente -> %d\n", dar_de_baja(&refugio, "Fantasma"));
     printf("\n--- Registro 1 (Uriel) ---\n");
@@ -342,6 +417,10 @@ int main(void) {
     agregar_superviviente(&refugio);
     printf("\n--- Registro 3 (Azul) ---\n");
     agregar_superviviente(&refugio);
+    listar_supervivientes(&refugio);
+    printf("\n--- Prueba expedicion ---\n");
+    expedicion(&refugio);
+    mostrar_recursos(&refugio);
     listar_supervivientes(&refugio);
     printf("\nBaja primero -> %d\n", dar_de_baja(&refugio, "Uriel"));
     listar_supervivientes(&refugio);
