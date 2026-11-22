@@ -125,42 +125,32 @@ int agregar_superviviente(Refugio *r) {
     r->n++;
     return 1;
 }
-int main(void){
-    Refugio refugio;
-    inicializar_refugio(&refugio);
-agregar_superviviente(&refugio);
 
-    for (int i = refugio.n; i < 25; i++) {
-        Superviviente s;
-        snprintf(s.nombre, sizeof(s.nombre), "Superviviente_%d", i + 1);
-        s.edad = 20 + (i % 30);
-        snprintf(s.habilidad, sizeof(s.habilidad), "Rastreo");
-        s.salud = 100;
-
-        if (refugio.capacidad == 0 || refugio.lista == NULL) {
-            int cap = 4;
-            Superviviente *m = malloc((size_t)cap * sizeof(Superviviente));
-            if (m != NULL) {
-                refugio.lista = m;
-                refugio.capacidad = cap;
-            }
-        } else if (refugio.n >= refugio.capacidad) {
-            int cap = refugio.capacidad * 2;
-            Superviviente *tmp = realloc(refugio.lista, (size_t)cap * sizeof(Superviviente));
-            if (tmp != NULL) {
-                refugio.lista = tmp;
-                refugio.capacidad = cap;
-            }
-        }
-
-        if (refugio.lista != NULL && refugio.n < refugio.capacidad) {
-            refugio.lista[refugio.n] = s;
-            refugio.n++;
-        }
+void listar_supervivientes(const Refugio *r) {
+    if (r == NULL || r->n <= 0 || r->lista == NULL) {
+        printf("No hay supervivientes registrados en el refugio.\n");
+        return;
     }
 
-    printf("Registrados: %d | Capacidad: %d | Ultimo: %s\n",
-           refugio.n, refugio.capacidad, refugio.lista[refugio.n - 1].nombre);
+    printf("\n--- Lista de supervivientes (%d) ---\n", r->n);
+    for (int i = 0; i < r->n; i++) {
+        printf("%d. Nombre: %s | Edad: %d | Habilidad: %s | Salud: %d\n",
+               i + 1,
+               r->lista[i].nombre,
+               r->lista[i].edad,
+               r->lista[i].habilidad,
+               r->lista[i].salud);
+    }
+    printf("--------------------------------------\n");
+}
+   int main(void) {
+    Refugio refugio;
+    inicializar_refugio(&refugio);
+    
+    listar_supervivientes(&refugio);
+
+    agregar_superviviente(&refugio);
+    listar_supervivientes(&refugio);
 
     free(refugio.lista);
     refugio.lista = NULL;
