@@ -6,6 +6,7 @@
 #define RECURSO_COMIDA 2
 #define RECURSO_MEDICAMENTOS 3
 #define RECURSO_MUNICIONES 4
+#define MAX_TEXTO_EVENTO 60
 
 typedef struct {
     char nombre[31];
@@ -22,10 +23,19 @@ typedef struct {
 } Recursos;
 
 typedef struct {
+    int dia;
+    char descripcion[MAX_TEXTO_EVENTO + 1];
+} Evento;
+
+typedef struct {
     Superviviente *lista;
     int n;
     int capacidad;
     Recursos recursos;
+    Evento *historial;
+    int num_eventos;
+    int cap_historial;
+    int dia_actual;
 } Refugio;
 
 void inicializar_refugio(Refugio *r) {
@@ -39,6 +49,10 @@ void inicializar_refugio(Refugio *r) {
     r->recursos.comida = 20;
     r->recursos.medicamentos = 10;
     r->recursos.municiones = 15;
+    r->historial = NULL;
+    r->num_eventos = 0;
+    r->cap_historial = 0;
+    r->dia_actual = 1;
 }
 
 void mostrar_recursos(const Refugio *r) {
@@ -210,32 +224,78 @@ void listar_supervivientes(const Refugio *r) {
                r->lista[i].habilidad,
                r->lista[i].salud);
     }
-    printf("--------------------------------------\n");
+    printf("..................................................\n");
+}
+
+int registrar_evento(Refugio *r, const char *texto) {
+    if (r == NULL || texto == NULL || texto[0] == '\0') {
+        printf("Evento invalido: refugio nulo o descripcion vacia.\n");
+        return 0;
+    }
+
+    if (r->cap_historial == 0 || r->historial == NULL) {
+        int nueva_cap = 4;
+        Evento *nuevo_hist = malloc((size_t)nueva_cap * sizeof(Evento));
+        if (nuevo_hist == NULL) {
+            printf("Error: no se pudo reservar memoria para el historial.\n");
+            return 0;
+        }
+        r->historial = nuevo_hist;
+        r->cap_historial = nueva_cap;
+        r->num_eventos = 0;
+    } else if (r->num_eventos >= r->cap_historial) {
+        int nueva_cap = r->cap_historial * 2;
+        Evento *temp = realloc(r->historial, (size_t)nueva_cap * sizeof(Evento));
+        if (temp == NULL) {
+            printf("Error: no se pudo ampliar memoria del historial. Se conserva el anterior.\n");
+            return 0;
+        }
+        r->historial = temp;
+        r->cap_historial = nueva_cap;
+    }
+
+    Evento nuevo_ev;
+    nuevo_ev.dia = r->dia_actual;
+    snprintf(nuevo_ev.descripcion, sizeof(nuevo_ev.descripcion), "%s", texto);
+
+    r->historial[r->num_eventos] = nuevo_ev;
+    r->num_eventos++;
+    return 1;
+}
+
+void mostrar_historial(const Refugio *r) {
+    if (r == NULL || r->num_eventos <= 0 || r->historial == NULL) {
+        printf("No hay acontecimientos registrados en el historial.\n");
+        return;
+    }
+
+    printf("\n--- Historial de acontecimientos (%d) ---\n", r->num_eventos);
+    for (int i = 0; i < r->num_eventos; i++) {
+        printf("%d. [Dia %d] %s\n",
+               i + 1,
+               r->historial[i].dia,
+               r->historial[i].descripcion);
+    }
+    printf("..................................................\n");
 }
 
 int main(void) {
     Refugio refugio;
     inicializar_refugio(&refugio);
-    mostrar_recursos(&refugio);
 
-    int res_entrada = modificar_recurso(&refugio, RECURSO_AGUA, 5);
-    printf("Entrada agua (+5) -> %d\n", res_entrada);
+    mostrar_historial(&refugio);
 
-    int res_salida_exacta = modificar_recurso(&refugio, RECURSO_MEDICAMENTOS, -10);
-    printf("Salida exacta medicamentos (-10) -> %d\n", res_salida_exacta);
-
-    int res_salida_exceso = modificar_recurso(&refugio, RECURSO_MEDICAMENTOS, -1);
-    printf("Salida de mas medicamentos (-1) -> %d\n", res_salida_exceso);
-
-    int res_tipo_invalido = modificar_recurso(&refugio, 99, 3);
-    printf("Tipo invalido -> %d\n", res_tipo_invalido);
-
-    int res_cantidad_cero = modificar_recurso(&refugio, RECURSO_AGUA, 0);
-    printf("Cantidad 0 -> %d\n", res_cantidad_cero);
-
-    mostrar_recursos(&refugio);
+    registrar_evento(&refugio, "Se abrio el refugio");
+    registrar_evento(&refugio, "Llegaron los primeros suministros y una muerte de un superviente");
+    refugio.dia_actual = 2;
+    registrar_evento(&refugio, "Se atendio al superviviente herido, recogieron los suministros");
+    refugio.dia_actual = 3;
+    registrar_evento(&refugio, "Un superviviente murio por falta de medicamentos, se perdio 3 suministros de comida y 2 de medicamentos");
+    mostrar_historial(&refugio);
 
     free(refugio.lista);
     refugio.lista = NULL;
+    free(refugio.historial);
+    refugio.historial = NULL;
     return 0;
 }
