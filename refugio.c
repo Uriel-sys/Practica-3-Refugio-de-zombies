@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define RECURSO_AGUA 1
+#define RECURSO_COMIDA 2
+#define RECURSO_MEDICAMENTOS 3
+#define RECURSO_MUNICIONES 4
+
 typedef struct {
     char nombre[31];
     int edad;
@@ -22,6 +27,44 @@ typedef struct {
     int capacidad;
     Recursos recursos;
 } Refugio;
+
+int modificar_recurso(Refugio *r, int tipo, int cantidad) {
+    if (r == NULL || cantidad == 0) {
+        printf("Operacion invalida: refugio nulo o cantidad igual a 0.\n");
+        return 0;
+    }
+
+    int *recurso_ptr = NULL;
+    switch (tipo) {
+        case RECURSO_AGUA:
+            recurso_ptr = &r->recursos.agua;
+            break;
+        case RECURSO_COMIDA:
+            recurso_ptr = &r->recursos.comida;
+            break;
+        case RECURSO_MEDICAMENTOS:
+            recurso_ptr = &r->recursos.medicamentos;
+            break;
+        case RECURSO_MUNICIONES:
+            recurso_ptr = &r->recursos.municiones;
+            break;
+        default:
+            printf("Tipo de recurso invalido (%d).\n", tipo);
+            return 0;
+    }
+    if (cantidad < 0){
+        int salida = -cantidad;
+        if (salida > *recurso_ptr) {
+            printf("No hay suficientes recursos para retirar. Se retirara todo lo disponible.\n");
+            *recurso_ptr = 0;
+        } else {
+            *recurso_ptr -= salida;
+            return 1;
+        }   
+        *recurso_ptr += cantidad;
+    return 1;
+    }
+}
 
 void inicializar_refugio(Refugio *r) {
     if (r == NULL) {
@@ -169,8 +212,15 @@ void listar_supervivientes(const Refugio *r) {
     printf("--------------------------------------\n");
 }
    int main(void) {
-Refugio refugio;
+    Refugio refugio;
     inicializar_refugio(&refugio);
+    mostrar_recursos(&refugio);
+    
+    printf("Entrada agua (+5) -> %d\n", modificar_recurso(&refugio, RECURSO_AGUA, 5));
+    printf("Salida exacta medicamentos (-10) -> %d\n", modificar_recurso(&refugio, RECURSO_MEDICAMENTOS, -10));
+    printf("Salida de mas medicamentos (-1) -> %d\n", modificar_recurso(&refugio, RECURSO_MEDICAMENTOS, -1));
+    printf("Tipo invalido -> %d\n", modificar_recurso(&refugio, 99, 3));
+    printf("Cantidad 0 -> %d\n", modificar_recurso(&refugio, RECURSO_AGUA, 0));
 
     mostrar_recursos(&refugio);
 
