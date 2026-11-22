@@ -1,19 +1,22 @@
 #include <stdio.h>
-typedef struct {
-    char nombre[30];
-    int edad;
-    char habilidad[30];
-    int salud;
-} superviviente;
+#include <stdlib.h>
+#include <string.h>
 
-typedef struct{
-    superviviente *lista;
+typedef struct {
+    char nombre[31];
+    int edad;
+    char habilidad[31];
+    int salud;
+} Superviviente;
+
+typedef struct {
+    Superviviente *lista;
     int n;
     int capacidad;
 } Refugio;
 
-void inicializar_refugio(Refugio *r){
-    if (r == NULL){
+void inicializar_refugio(Refugio *r) {
+    if (r == NULL) {
         return;
     }
     r->lista = NULL;
@@ -21,8 +24,145 @@ void inicializar_refugio(Refugio *r){
     r->capacidad = 0;
 }
 
+static void limpiar_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) {
+    }
+}
+
+static void quitar_salto_linea(char *cadena) {
+    size_t len = strlen(cadena);
+    if (len > 0 && cadena[len - 1] == '\n') {
+        cadena[len - 1] = '\0';
+    }
+}
+
+static int solo_espacios_o_vacio(const char *cadena) {
+    if (cadena[0] == '\0') {
+        return 1;
+    }
+    for (size_t i = 0; cadena[i] != '\0'; i++) {
+        if (cadena[i] != ' ' && cadena[i] != '\t' && cadena[i] != '\r') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int agregar_superviviente(Refugio *r) {
+    if (r == NULL) {
+        return 0;
+    }
+
+    Superviviente nuevo;
+    memset(&nuevo, 0, sizeof(Superviviente));
+
+    printf("Nombre del superviviente (max 30 caracteres): ");
+    if (fgets(nuevo.nombre, sizeof(nuevo.nombre), stdin) == NULL) {
+        printf("Error al leer el nombre.\n");
+        return 0;
+    }
+    quitar_salto_linea(nuevo.nombre);
+    if (strchr(nuevo.nombre, '\0') == nuevo.nombre + sizeof(nuevo.nombre) - 1 &&
+        strlen(nuevo.nombre) == sizeof(nuevo.nombre) - 1) {
+        /* Si se llenaron los 30 caracteres exactos, limpiamos el resto de la línea si lo hubiera */
+        limpiar_buffer();
+    }
+
+    if (solo_espacios_o_vacio(nuevo.nombre)) {
+        printf("Nombre invalido: no puede estar vacio.\n");
+        return 0;
+    }
+
+    printf("Edad (mayor que 0): ");
+    if (scanf("%d", &nuevo.edad) != 1 || nuevo.edad <= 0) {
+        printf("Edad invalida: debe ser mayor que 0.\n");
+        limpiar_buffer();
+        return 0;
+    }
+    limpiar_buffer();
+
+    printf("Habilidad especial (max 30 caracteres): ");
+    if (fgets(nuevo.habilidad, sizeof(nuevo.habilidad), stdin) == NULL) {
+        printf("Error al leer la habilidad especial.\n");
+        return 0;
+    }
+    quitar_salto_linea(nuevo.habilidad);
+    if (strlen(nuevo.habilidad) == sizeof(nuevo.habilidad) - 1) {
+        limpiar_buffer();
+    }
+
+    printf("Salud (0 a 100): ");
+    if (scanf("%d", &nuevo.salud) != 1 || nuevo.salud < 0 || nuevo.salud > 100) {
+        printf("Salud invalida: debe estar entre 0 y 100.\n");
+        limpiar_buffer();
+        return 0;
+    }
+    limpiar_buffer();
+
+    if (r->capacidad == 0 || r->lista == NULL) {
+        int nueva_capacidad = 4;
+        Superviviente *nueva_lista = malloc((size_t)nueva_capacidad * sizeof(Superviviente));
+        if (nueva_lista == NULL) {
+            printf("Error: no se pudo reservar memoria inicial con malloc.\n");
+            return 0;
+        }
+        r->lista = nueva_lista;
+        r->capacidad = nueva_capacidad;
+        r->n = 0;
+    } else if (r->n >= r->capacidad) {
+        int nueva_capacidad = r->capacidad * 2;
+        Superviviente *temp = realloc(r->lista, (size_t)nueva_capacidad * sizeof(Superviviente));
+        if (temp == NULL) {
+            printf("Error: no se pudo ampliar memoria con realloc. Se conservan los registros previos.\n");
+            return 0;
+        }
+        r->lista = temp;
+        r->capacidad = nueva_capacidad;
+    }
+
+    r->lista[r->n] = nuevo;
+    r->n++;
+    return 1;
+}
 int main(void){
     Refugio refugio;
     inicializar_refugio(&refugio);
+agregar_superviviente(&refugio);
+
+    for (int i = refugio.n; i < 25; i++) {
+        Superviviente s;
+        snprintf(s.nombre, sizeof(s.nombre), "Superviviente_%d", i + 1);
+        s.edad = 20 + (i % 30);
+        snprintf(s.habilidad, sizeof(s.habilidad), "Rastreo");
+        s.salud = 100;
+
+        if (refugio.capacidad == 0 || refugio.lista == NULL) {
+            int cap = 4;
+            Superviviente *m = malloc((size_t)cap * sizeof(Superviviente));
+            if (m != NULL) {
+                refugio.lista = m;
+                refugio.capacidad = cap;
+            }
+        } else if (refugio.n >= refugio.capacidad) {
+            int cap = refugio.capacidad * 2;
+            Superviviente *tmp = realloc(refugio.lista, (size_t)cap * sizeof(Superviviente));
+            if (tmp != NULL) {
+                refugio.lista = tmp;
+                refugio.capacidad = cap;
+            }
+        }
+
+        if (refugio.lista != NULL && refugio.n < refugio.capacidad) {
+            refugio.lista[refugio.n] = s;
+            refugio.n++;
+        }
+    }
+
+    printf("Registrados: %d | Capacidad: %d | Ultimo: %s\n",
+           refugio.n, refugio.capacidad, refugio.lista[refugio.n - 1].nombre);
+
+    free(refugio.lista);
+    refugio.lista = NULL;
     return 0;
 }
