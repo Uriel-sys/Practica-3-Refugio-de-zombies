@@ -10,9 +10,17 @@ typedef struct {
 } Superviviente;
 
 typedef struct {
+    int agua;
+    int comida;
+    int medicamentos;
+    int municiones;
+} Recursos;
+
+typedef struct {
     Superviviente *lista;
     int n;
     int capacidad;
+    Recursos recursos;
 } Refugio;
 
 void inicializar_refugio(Refugio *r) {
@@ -22,6 +30,24 @@ void inicializar_refugio(Refugio *r) {
     r->lista = NULL;
     r->n = 0;
     r->capacidad = 0;
+    r->recursos.agua = 20;
+    r->recursos.comida = 20;
+    r->recursos.medicamentos = 10;
+    r->recursos.municiones = 15;
+}
+
+void mostrar_recursos(const Refugio *r) {
+    if (r == NULL) {
+        printf("Refugio no valido.\n");
+        return;
+    }
+
+    printf("\n--- Recursos del refugio ---\n");
+    printf("Agua:         %d\n", r->recursos.agua);
+    printf("Comida:       %d\n", r->recursos.comida);
+    printf("Medicamentos: %d\n", r->recursos.medicamentos);
+    printf("Municiones:   %d\n", r->recursos.municiones);
+    printf("................................\n");
 }
 
 static void limpiar_buffer(void) {
@@ -65,7 +91,6 @@ int agregar_superviviente(Refugio *r) {
     quitar_salto_linea(nuevo.nombre);
     if (strchr(nuevo.nombre, '\0') == nuevo.nombre + sizeof(nuevo.nombre) - 1 &&
         strlen(nuevo.nombre) == sizeof(nuevo.nombre) - 1) {
-        /* Si se llenaron los 30 caracteres exactos, limpiamos el resto de la línea si lo hubiera */
         limpiar_buffer();
     }
 
@@ -144,15 +169,12 @@ void listar_supervivientes(const Refugio *r) {
     printf("--------------------------------------\n");
 }
    int main(void) {
-    Refugio refugio;
+Refugio refugio;
     inicializar_refugio(&refugio);
-    
-    listar_supervivientes(&refugio);
 
-    agregar_superviviente(&refugio);
-    listar_supervivientes(&refugio);
+    mostrar_recursos(&refugio);
 
     free(refugio.lista);
     refugio.lista = NULL;
     return 0;
-}
+   }
