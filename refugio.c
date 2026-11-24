@@ -596,56 +596,199 @@ int guardar_partida(const Refugio *r) {
     return 1;
 }
 
+static int archivo_existe(const char *ruta) {
+    FILE *f = fopen(ruta, "r");
+    if (f != NULL) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
+}
+
+static void limpiar_linea_archivo(char *s) {
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r')) {
+        s[--len] = '\0';
+    }
+}
+
+int cargar_partida(Refugio *r) {
+    if (r == NULL) {
+        return 0;
+    }
+
+    int ex_sup = archivo_existe(ARCH_SUP_FINAL);
+    int ex_rec = archivo_existe(ARCH_REC_FINAL);
+    int ex_his = archivo_existe(ARCH_HIS_FINAL);
+
+
+    if (!ex_sup && !ex_rec && !ex_his) {
+        printf("No se encontro partida guardada. Iniciando refugio nuevo.\n");
+        return 1;
+    }
+
+
+    if (!ex_sup || !ex_rec || !ex_his) {
+        printf("Error: guardado incompleto (falta uno o mas archivos). No se cargaran datos.\n");
+        return 0;
+    }
+
+    Superviviente *temp_lista = NULL;
+    int temp_n = 0;
+    int temp_cap = 0;
+    Recursos temp_rec = {20, 20, 10, 15};
+    int temp_dia = 1;
+    Evento *temp_hist = NULL;
+    int temp_num_ev = 0;
+    int temp_cap_ev = 0;
+    char linea[256];
+
+    FILE *f_sup = fopen(ARCH_SUP_FINAL, "r");
+    if (f_sup == NULL) {
+        printf("Error al abrir '%s'.\n", ARCH_SUP_FINAL);
+        return 0;
+    }
+
+    if (fgets(linea, sizeof(linea), f_sup) == NULL || sscanf(linea, "%d", &temp_n) != 1 || temp_n < 0) {
+        printf("Error: cantidad de supervivientes invalida en '%s'.\n", ARCH_SUP_FINAL);
+        fclose(f_sup);
+        return 0;
+    }
+
+    if (temp_n > 0) {
+        temp_cap = (temp_n < 4) ? 4 : temp_n;
+        temp_lista = malloc((size_t)temp_cap * sizeof(Superviviente));
+        if (temp_lista == NULL) {
+            printf("Error: sin memoria para cargar.\n");
+            fclose(f_sup);
+            return 0;
+        }
+
+        for (int i = 0; i < temp_n; i++) {
+            if (fgets(linea, sizeof(linea), f_sup) == NULL) {
+                printf("Error: faltan registros de supervivientes en '%s'.\n", ARCH_SUP_FINAL);
+                free(temp_lista);
+                fclose(f_sup);
+                return 0;
+            }
+            limpiar_linea_archivo(linea);
+
+            Superviviente s;
+            memset(&s, 0, sizeof(Superviviente));
+            int leidos = sscanf(linea, "%d|%d|%30[^|]|%30[^\n]",
+                                &s.edad, &s.salud, s.nombre, s.habilidad);
+            if (leidos < 3 || s.edad <= 0 || s.salud < 0 || s.salud > 100 || solo_espacios_o_vacio(s.nombre)) {
+                printf("Error:fuera de rango en superviviente %d.\n", i + 1);
+                free(temp_lista);
+                fclose(f_sup);
+                return 0;
+            }
+            temp_lista[i] = s;
+        }
+    }
+    fclose(f_sup);
+
+    FILE *f_rec = fopen(ARCH_REC_FINAL, "r");
+    if (f_rec == NULL) {
+        printf("Error al abrir '%s'.\n", ARCH_REC_FINAL);
+        free(temp_lista);
+        return 0;
+    }
+
+    if (fgets(linea, sizeof(linea), f_rec) == NULL ||
+        sscanf(linea, "%d %d %d %d %d",
+               &temp_rec.agua,
+               &temp_rec.comida,
+               &temp_rec.medicamentos,
+               &temp_rec.municiones,
+               &temp_dia) != 5 ||
+        temp_rec.agua < 0 || temp_rec.comida < 0 ||
+        temp_rec.medicamentos < 0 || temp_rec.municiones < 0 || temp_dia < 1) {
+        printf("Error: recursos o dia fuera de rango en '%s'.\n", ARCH_REC_FINAL);
+        free(temp_lista);
+        fclose(f_rec);
+        return 0;
+    }
+    fclose(f_rec);
+
+    FILE *f_his = fopen(ARCH_HIS_FINAL, "r");
+    if (f_his == NULL) {
+        printf("Error al abrir '%s'.\n", ARCH_HIS_FINAL);
+        free(temp_lista);
+        return 0;
+    }
+
+    if (fgets(linea, sizeof(linea), f_his) == NULL || sscanf(linea, "%d", &temp_num_ev) != 1 || temp_num_ev < 0) {
+        printf("Error: cantidad de eventos invalida en '%s'.\n", ARCH_HIS_FINAL);
+        free(temp_lista);
+        fclose(f_his);
+        return 0;
+    }
+
+    if (temp_num_ev > 0) {
+        temp_cap_ev = (temp_num_ev < 4) ? 4 : temp_num_ev;
+        temp_hist = malloc((size_t)temp_cap_ev * sizeof(Evento));
+        if (temp_hist == NULL) {
+            printf("Error: sin memoria para cargar historial.\n");
+            free(temp_lista);
+            fclose(f_his);
+            return 0;
+        }
+
+        for (int i = 0; i < temp_num_ev; i++) {
+            if (fgets(linea, sizeof(linea), f_his) == NULL) {
+                printf("Error: faltan registros en '%s'.\n", ARCH_HIS_FINAL);
+                free(temp_hist);
+                free(temp_lista);
+                fclose(f_his);
+                return 0;
+            }
+            limpiar_linea_archivo(linea);
+
+            Evento ev;
+            memset(&ev, 0, sizeof(Evento));
+            if (sscanf(linea, "%d|%60[^\n]", &ev.dia, ev.descripcion) != 2 ||
+                ev.dia < 1 || solo_espacios_o_vacio(ev.descripcion)) {
+                printf("Error: evento %d danado o fuera de rango en '%s'.\n", i + 1, ARCH_HIS_FINAL);
+                free(temp_hist);
+                free(temp_lista);
+                fclose(f_his);
+                return 0;
+            }
+            temp_hist[i] = ev;
+        }
+    }
+    fclose(f_his);
+
+    free(r->lista);
+    free(r->historial);
+
+    r->lista = temp_lista;
+    r->n = temp_n;
+    r->capacidad = temp_cap;
+    r->recursos = temp_rec;
+    r->dia_actual = temp_dia;
+    r->historial = temp_hist;
+    r->num_eventos = temp_num_ev;
+    r->cap_historial = temp_cap_ev;
+
+    printf("Partida recuperada correctamente (Dia %d, %d supervivientes, %d eventos).\n",
+           r->dia_actual, r->n, r->num_eventos);
+    return 1;
+}
 int main(void) {
     Refugio refugio;
     inicializar_refugio(&refugio);
 
-  
-    Superviviente s1;
-    memset(&s1, 0, sizeof(Superviviente));
-    snprintf(s1.nombre, sizeof(s1.nombre), "Uriel");
-    s1.edad = 20;
-    snprintf(s1.habilidad, sizeof(s1.habilidad), "Programar");
-    s1.salud = 85;
+    registrar_evento(&refugio, "Estado previo intacto.");
 
-    refugio.lista = malloc(sizeof(Superviviente));
-    if (refugio.lista == NULL) {
-        printf("Error de memoria en la prueba.\n");
-        return 1;
-    }
-    refugio.lista[0] = s1;
-    refugio.n = 1;
-    refugio.capacidad = 1;
+    printf("--- Prueba HU-11: Datos danados o fuera de rango ---\n");
+    int res = cargar_partida(&refugio);
+    printf("Resultado cargar_partida: %d (esperado: 0)\n", res);
 
-    modificar_recurso(&refugio, RECURSO_AGUA, 5);
-    refugio.dia_actual = 3;
-    registrar_evento(&refugio, "Prueba de guardado seguro HU-10.");
-
-
-    printf("--- Prueba 1: Guardado valido ---\n");
-    int res_ok = guardar_partida(&refugio);
-    printf("Resultado guardar_partida: %d (esperado: 1)\n", res_ok);
-
-    printf("\n--- Prueba 2: Ruta invalida ---\n");
-    const char *ruta_invalida = "carpeta_que_no_existe/recursos.tmp";
-    FILE *f_err = fopen(ruta_invalida, "w");
-    if (f_err == NULL) {
-        printf("Error esperado al abrir ruta invalida '%s'. Guardado previo intacto.\n", ruta_invalida);
-    } else {
-        fclose(f_err);
-    }
-    FILE *check_sup = fopen(ARCH_SUP_FINAL, "r");
-    FILE *check_rec = fopen(ARCH_REC_FINAL, "r");
-    FILE *check_his = fopen(ARCH_HIS_FINAL, "r");
-    if (check_sup != NULL && check_rec != NULL && check_his != NULL) {
-        printf("Verificacion OK: '%s', '%s' y '%s' siguen presentes y sin danos.\n",
-               ARCH_SUP_FINAL, ARCH_REC_FINAL, ARCH_HIS_FINAL);
-    } else {
-        printf("Error: falta alguno de los archivos guardados.\n");
-    }
-    if (check_sup != NULL) fclose(check_sup);
-    if (check_rec != NULL) fclose(check_rec);
-    if (check_his != NULL) fclose(check_his);
+    listar_supervivientes(&refugio);
+    mostrar_recursos(&refugio);
+    mostrar_historial(&refugio);
 
     free(refugio.lista);
     refugio.lista = NULL;
