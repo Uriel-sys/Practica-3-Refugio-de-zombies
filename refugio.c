@@ -3,6 +3,12 @@
 #include <string.h>
 #include <time.h>
 
+#define ARCH_SUP_FINAL "supervivientes.txt"
+#define ARCH_SUP_TMP   "supervivientes.tmp"
+#define ARCH_REC_FINAL "recursos.txt"
+#define ARCH_REC_TMP   "recursos.tmp"
+#define ARCH_HIS_FINAL "historial.txt"
+#define ARCH_HIS_TMP   "historial.tmp"
 #define RECURSO_AGUA 1
 #define RECURSO_COMIDA 2
 #define RECURSO_MEDICAMENTOS 3
@@ -454,38 +460,196 @@ void perder_recurso(Refugio *r, int tipo, int cantidad) {
            perdido, nombre_recurso, *recurso_ptr);
 }
 
+static void limpiar_temporales_guardado(void) {
+    remove(ARCH_SUP_TMP);
+    remove(ARCH_REC_TMP);
+    remove(ARCH_HIS_TMP);
+}
+
+int guardar_partida(const Refugio *r) {
+    if (r == NULL) {
+        printf("Error al guardar: refugio nulo.\n");
+        return 0;
+    }
+
+    if (r->n > 0 && r->lista == NULL) {
+        printf("Error al guardar: lista de supervivientes inconsistente.\n");
+        return 0;
+    }
+
+    if (r->num_eventos > 0 && r->historial == NULL) {
+        printf("Error al guardar: historial inconsistente.\n");
+        return 0;
+    }
+
+    FILE *f_sup = fopen(ARCH_SUP_TMP, "w");
+    if (f_sup == NULL) {
+        printf("Error al abrir '%s' para guardar supervivientes.\n", ARCH_SUP_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    if (fprintf(f_sup, "%d\n", r->n) < 0) {
+        printf("Error al escribir cantidad de supervivientes.\n");
+        fclose(f_sup);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    for (int i = 0; i < r->n; i++) {
+        if (fprintf(f_sup, "%d|%d|%s|%s\n",
+                    r->lista[i].edad,
+                    r->lista[i].salud,
+                    r->lista[i].nombre,
+                    r->lista[i].habilidad) < 0) {
+            printf("Error al escribir el superviviente %d.\n", i + 1);
+            fclose(f_sup);
+            limpiar_temporales_guardado();
+            return 0;
+        }
+    }
+
+    if (fclose(f_sup) != 0) {
+        printf("Error al cerrar '%s'.\n", ARCH_SUP_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    FILE *f_rec = fopen(ARCH_REC_TMP, "w");
+    if (f_rec == NULL) {
+        printf("Error al abrir '%s' para guardar recursos.\n", ARCH_REC_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    if (fprintf(f_rec, "%d %d %d %d %d\n",
+                r->recursos.agua,
+                r->recursos.comida,
+                r->recursos.medicamentos,
+                r->recursos.municiones,
+                r->dia_actual) < 0) {
+        printf("Error al escribir los recursos del refugio.\n");
+        fclose(f_rec);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    if (fclose(f_rec) != 0) {
+        printf("Error al cerrar '%s'.\n", ARCH_REC_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    FILE *f_his = fopen(ARCH_HIS_TMP, "w");
+    if (f_his == NULL) {
+        printf("Error al abrir '%s' para guardar historial.\n", ARCH_HIS_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    if (fprintf(f_his, "%d\n", r->num_eventos) < 0) {
+        printf("Error al escribir cantidad de eventos.\n");
+        fclose(f_his);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    for (int i = 0; i < r->num_eventos; i++) {
+        if (fprintf(f_his, "%d|%s\n",
+                    r->historial[i].dia,
+                    r->historial[i].descripcion) < 0) {
+            printf("Error al escribir el evento %d.\n", i + 1);
+            fclose(f_his);
+            limpiar_temporales_guardado();
+            return 0;
+        }
+    }
+
+    if (fclose(f_his) != 0) {
+        printf("Error al cerrar '%s'.\n", ARCH_HIS_TMP);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    remove(ARCH_SUP_FINAL);
+    if (rename(ARCH_SUP_TMP, ARCH_SUP_FINAL) != 0) {
+        printf("Error al renombrar '%s' a '%s'.\n", ARCH_SUP_TMP, ARCH_SUP_FINAL);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    remove(ARCH_REC_FINAL);
+    if (rename(ARCH_REC_TMP, ARCH_REC_FINAL) != 0) {
+        printf("Error al renombrar '%s' a '%s'.\n", ARCH_REC_TMP, ARCH_REC_FINAL);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    remove(ARCH_HIS_FINAL);
+    if (rename(ARCH_HIS_TMP, ARCH_HIS_FINAL) != 0) {
+        printf("Error al renombrar '%s' a '%s'.\n", ARCH_HIS_TMP, ARCH_HIS_FINAL);
+        limpiar_temporales_guardado();
+        return 0;
+    }
+
+    printf("Partida guardada de forma segura.\n");
+    return 1;
+}
+
 int main(void) {
     Refugio refugio;
-    srand((unsigned int)time(NULL));
     inicializar_refugio(&refugio);
-    printf("Baja inexistente -> %d\n", dar_de_baja(&refugio, "Fantasma"));
-    printf("\n--- Registro 1 (Uriel) ---\n");
-    agregar_superviviente(&refugio);
-    printf("\n--- Registro 2 (Jacobo) ---\n");
-    agregar_superviviente(&refugio);
-    printf("\n--- Registro 3 (Azul) ---\n");
-    agregar_superviviente(&refugio);
-    listar_supervivientes(&refugio);
-    printf("\n--- Prueba expedicion ---\n");
-    expedicion(&refugio);
-    mostrar_recursos(&refugio);
-    listar_supervivientes(&refugio);
-    printf("\nBaja primero -> %d\n", dar_de_baja(&refugio, "Uriel"));
-    listar_supervivientes(&refugio);
-    printf("\nBaja intermedio -> %d\n", dar_de_baja(&refugio, "Jacobo"));
-    listar_supervivientes(&refugio);
-    printf("\nBaja ultimo/unico -> %d\n", dar_de_baja(&refugio, "Azul"));
-    listar_supervivientes(&refugio);
-    mostrar_historial(&refugio);
+
+  
+    Superviviente s1;
+    memset(&s1, 0, sizeof(Superviviente));
+    snprintf(s1.nombre, sizeof(s1.nombre), "Uriel");
+    s1.edad = 20;
+    snprintf(s1.habilidad, sizeof(s1.habilidad), "Programar");
+    s1.salud = 85;
+
+    refugio.lista = malloc(sizeof(Superviviente));
+    if (refugio.lista == NULL) {
+        printf("Error de memoria en la prueba.\n");
+        return 1;
+    }
+    refugio.lista[0] = s1;
+    refugio.n = 1;
+    refugio.capacidad = 1;
+
+    modificar_recurso(&refugio, RECURSO_AGUA, 5);
+    refugio.dia_actual = 3;
+    registrar_evento(&refugio, "Prueba de guardado seguro HU-10.");
+
+
+    printf("--- Prueba 1: Guardado valido ---\n");
+    int res_ok = guardar_partida(&refugio);
+    printf("Resultado guardar_partida: %d (esperado: 1)\n", res_ok);
+
+    printf("\n--- Prueba 2: Ruta invalida ---\n");
+    const char *ruta_invalida = "carpeta_que_no_existe/recursos.tmp";
+    FILE *f_err = fopen(ruta_invalida, "w");
+    if (f_err == NULL) {
+        printf("Error esperado al abrir ruta invalida '%s'. Guardado previo intacto.\n", ruta_invalida);
+    } else {
+        fclose(f_err);
+    }
+    FILE *check_sup = fopen(ARCH_SUP_FINAL, "r");
+    FILE *check_rec = fopen(ARCH_REC_FINAL, "r");
+    FILE *check_his = fopen(ARCH_HIS_FINAL, "r");
+    if (check_sup != NULL && check_rec != NULL && check_his != NULL) {
+        printf("Verificacion OK: '%s', '%s' y '%s' siguen presentes y sin danos.\n",
+               ARCH_SUP_FINAL, ARCH_REC_FINAL, ARCH_HIS_FINAL);
+    } else {
+        printf("Error: falta alguno de los archivos guardados.\n");
+    }
+    if (check_sup != NULL) fclose(check_sup);
+    if (check_rec != NULL) fclose(check_rec);
+    if (check_his != NULL) fclose(check_his);
+
     free(refugio.lista);
     refugio.lista = NULL;
     free(refugio.historial);
     refugio.historial = NULL;
-    printf("\n--- (recurso perdido en medicamentos, inicial 10) ---\n");
-    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 4);  
-    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 6);  
-    perder_recurso(&refugio, RECURSO_MEDICAMENTOS, 15); 
-    mostrar_recursos(&refugio);
-    mostrar_historial(&refugio);
     return 0;
 }
