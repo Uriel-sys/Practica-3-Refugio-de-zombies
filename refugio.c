@@ -140,6 +140,37 @@ static int solo_espacios_o_vacio(const char *cadena) {
     return 1;
 }
 
+static int anexar_superviviente_dinamico(Refugio *r, Superviviente nuevo) {
+    if (r == NULL) {
+        return 0;
+    }
+
+    if (r->capacidad == 0 || r->lista == NULL) {
+        int nueva_capacidad = 4;
+        Superviviente *nueva_lista = malloc((size_t)nueva_capacidad * sizeof(Superviviente));
+        if (nueva_lista == NULL) {
+            printf("Error: no se pudo reservar memoria inicial con malloc.\n");
+            return 0;
+        }
+        r->lista = nueva_lista;
+        r->capacidad = nueva_capacidad;
+        r->n = 0;
+    } else if (r->n >= r->capacidad) {
+        int nueva_capacidad = r->capacidad * 2;
+        Superviviente *temp = realloc(r->lista, (size_t)nueva_capacidad * sizeof(Superviviente));
+        if (temp == NULL) {
+            printf("Error: no se pudo ampliar memoria con realloc. Se conservan los registros previos.\n");
+            return 0;
+        }
+        r->lista = temp;
+        r->capacidad = nueva_capacidad;
+    }
+
+    r->lista[r->n] = nuevo;
+    r->n++;
+    return 1;
+}
+
 int agregar_superviviente(Refugio *r) {
     if (r == NULL) {
         return 0;
@@ -190,30 +221,7 @@ int agregar_superviviente(Refugio *r) {
     }
     limpiar_buffer();
 
-    if (r->capacidad == 0 || r->lista == NULL) {
-        int nueva_capacidad = 4;
-        Superviviente *nueva_lista = malloc((size_t)nueva_capacidad * sizeof(Superviviente));
-        if (nueva_lista == NULL) {
-            printf("Error: no se pudo reservar memoria inicial con malloc.\n");
-            return 0;
-        }
-        r->lista = nueva_lista;
-        r->capacidad = nueva_capacidad;
-        r->n = 0;
-    } else if (r->n >= r->capacidad) {
-        int nueva_capacidad = r->capacidad * 2;
-        Superviviente *temp = realloc(r->lista, (size_t)nueva_capacidad * sizeof(Superviviente));
-        if (temp == NULL) {
-            printf("Error: no se pudo ampliar memoria con realloc. Se conservan los registros previos.\n");
-            return 0;
-        }
-        r->lista = temp;
-        r->capacidad = nueva_capacidad;
-    }
-
-    r->lista[r->n] = nuevo;
-    r->n++;
-    return 1;
+    return anexar_superviviente_dinamico(r, nuevo);
 }
 
 void listar_supervivientes(const Refugio *r) {
@@ -332,13 +340,15 @@ int dar_de_baja(Refugio *r, const char *nombre) {
             r->capacidad = nueva_cap;
         }
     }
+
     char msg[MAX_TEXTO_EVENTO + 1];
-    snprintf(msg, sizeof(msg), "Baja de superviviente: %s", nombre_baja);
+    snprintf(msg, sizeof(msg), "Baja de superviviente: %.30s", nombre_baja);
     registrar_evento(r, msg);
 
     return 1;
 }
-    int expedicion(Refugio *r) {
+
+int expedicion(Refugio *r) {
     if (r == NULL || r->lista == NULL || r->n <= 0) {
         printf("Expedicion cancelada: no hay supervivientes con salud mayor que 0.\n");
         return 0;
@@ -395,7 +405,7 @@ int dar_de_baja(Refugio *r, const char *nombre) {
 
     int desaparecio = (r->lista[elegido_idx].salud == 0) || ((rand() % 100) < 30);
 
-char resumen[MAX_TEXTO_EVENTO + 1];
+    char resumen[MAX_TEXTO_EVENTO + 1];
     if (desaparecio) {
         snprintf(resumen, sizeof(resumen), "Exp: %.25s desaparecio (+%da/+%dc)",
                  nombre_expedicionario, agua_ganada, comida_ganada);
@@ -621,12 +631,10 @@ int cargar_partida(Refugio *r) {
     int ex_rec = archivo_existe(ARCH_REC_FINAL);
     int ex_his = archivo_existe(ARCH_HIS_FINAL);
 
-
     if (!ex_sup && !ex_rec && !ex_his) {
         printf("No se encontro partida guardada. Iniciando refugio nuevo.\n");
         return 1;
     }
-
 
     if (!ex_sup || !ex_rec || !ex_his) {
         printf("Error: guardado incompleto (falta uno o mas archivos). No se cargaran datos.\n");
@@ -776,23 +784,209 @@ int cargar_partida(Refugio *r) {
            r->dia_actual, r->n, r->num_eventos);
     return 1;
 }
+
+void evento_aleatorio(Refugio *r) {
+    if (r == NULL) {
+        return;
+    }
+
+    int tipo = rand() % 5;
+    char msg[MAX_TEXTO_EVENTO + 1];
+
+    switch (tipo) {
+        case 0: {
+            Superviviente medico;
+            memset(&medico, 0, sizeof(Superviviente));
+            snprintf(medico.nombre, sizeof(medico.nombre), "Medico_%d", r->n + r->num_eventos + 1);
+            medico.edad = 28 + (rand() % 20);
+            snprintf(medico.habilidad, sizeof(medico.habilidad), "Medico");
+            medico.salud = 80 + (rand() % 21);
+            if (anexar_superviviente_dinamico(r, medico)) {
+                snprintf(msg, sizeof(msg), "Evento: Llego un medico! (%s)", medico.nombre);
+                registrar_evento(r, msg);
+                printf("Evento aleatorio: Llego un medico! Se unio %s.\n", medico.nombre);
+            }
+            break;
+        }
+        case 1: {
+            int baja_mun = 2;
+            int disponible_mun = r->recursos.municiones;
+            int gastado_mun = (baja_mun >= disponible_mun) ? disponible_mun : baja_mun;
+            if (gastado_mun > 0) {
+                modificar_recurso(r, RECURSO_MUNICIONES, -gastado_mun);
+            }
+            perder_recurso(r, RECURSO_MEDICAMENTOS, 2);
+            snprintf(msg, sizeof(msg), "Evento: La horda ataco (-%d mun, -med)", gastado_mun);
+            registrar_evento(r, msg);
+            printf("Evento aleatorio: La horda ataco!\n");
+            break;
+        }
+        case 2: {
+            perder_recurso(r, RECURSO_COMIDA, 4);
+            snprintf(msg, sizeof(msg), "Evento: Alguien robo la comida");
+            registrar_evento(r, msg);
+            printf("Evento aleatorio: Alguien robo la comida!\n");
+            break;
+        }
+        case 3: {
+            modificar_recurso(r, RECURSO_AGUA, 3);
+            modificar_recurso(r, RECURSO_COMIDA, 3);
+            modificar_recurso(r, RECURSO_MUNICIONES, 2);
+            snprintf(msg, sizeof(msg), "Evento: Encontraron una mochila (+3a/+3c/+2m)");
+            registrar_evento(r, msg);
+            printf("Evento aleatorio: Encontraron una mochila con recursos!\n");
+            break;
+        }
+        case 4:
+        default: {
+            snprintf(msg, sizeof(msg), "Evento: Se fue la luz!");
+            registrar_evento(r, msg);
+            printf("Evento aleatorio: Se fue la luz! Guardando y recargando...\n");
+            if (guardar_partida(r)) {
+                cargar_partida(r);
+            }
+            break;
+        }
+    }
+}
+
+void liberar_refugio(Refugio *r) {
+    if (r == NULL) {
+        return;
+    }
+
+    free(r->lista);
+    r->lista = NULL;
+    r->n = 0;
+    r->capacidad = 0;
+
+    free(r->historial);
+    r->historial = NULL;
+    r->num_eventos = 0;
+    r->cap_historial = 0;
+}
+
+static void imprimir_menu(int dia_actual) {
+    printf("\n================ REFUGIO (Dia %d) ================\n", dia_actual);
+    printf("1. Registrar superviviente\n");
+    printf("2. Listar supervivientes\n");
+    printf("3. Mostrar recursos\n");
+    printf("4. Modificar recurso\n");
+    printf("5. Dar de baja a un superviviente\n");
+    printf("6. Simular expedicion\n");
+    printf("7. Registrar perdida de recurso\n");
+    printf("8. Mostrar historial\n");
+    printf("9. Evento aleatorio\n");
+    printf("10. Avanzar al siguiente dia\n");
+    printf("11. Guardar partida\n");
+    printf("0. Guardar y salir\n");
+    printf("==================================================\n");
+    printf("Elige una opcion: ");
+}
+
 int main(void) {
     Refugio refugio;
+    srand((unsigned int)time(NULL));
     inicializar_refugio(&refugio);
 
-    registrar_evento(&refugio, "Estado previo intacto.");
+    if (!cargar_partida(&refugio)) {
+        printf("Advertencia: no se cargo partida previa; se conserva el estado inicial.\n");
+    }
 
-    printf("--- Prueba HU-11: Datos danados o fuera de rango ---\n");
-    int res = cargar_partida(&refugio);
-    printf("Resultado cargar_partida: %d (esperado: 0)\n", res);
+    int opcion = -1;
+    do {
+        imprimir_menu(refugio.dia_actual);
+        if (scanf("%d", &opcion) != 1) {
+            printf("Entrada invalida.\n");
+            limpiar_buffer();
+            opcion = -1;
+            continue;
+        }
+        limpiar_buffer();
 
-    listar_supervivientes(&refugio);
-    mostrar_recursos(&refugio);
-    mostrar_historial(&refugio);
+        switch (opcion) {
+            case 1:
+                agregar_superviviente(&refugio);
+                break;
+            case 2:
+                listar_supervivientes(&refugio);
+                break;
+            case 3:
+                mostrar_recursos(&refugio);
+                break;
+            case 4: {
+                int tipo = 0;
+                int cantidad = 0;
+                printf("Tipo (1=Agua, 2=Comida, 3=Medicamentos, 4=Municiones): ");
+                if (scanf("%d", &tipo) != 1) {
+                    limpiar_buffer();
+                    printf("Tipo invalido.\n");
+                    break;
+                }
+                printf("Cantidad (+ entrada, - salida): ");
+                if (scanf("%d", &cantidad) != 1) {
+                    limpiar_buffer();
+                    printf("Cantidad invalida.\n");
+                    break;
+                }
+                limpiar_buffer();
+                modificar_recurso(&refugio, tipo, cantidad);
+                break;
+            }
+            case 5: {
+                char nombre[31];
+                printf("Nombre del superviviente a dar de baja: ");
+                if (fgets(nombre, sizeof(nombre), stdin) != NULL) {
+                    quitar_salto_linea(nombre);
+                    dar_de_baja(&refugio, nombre);
+                }
+                break;
+            }
+            case 6:
+                expedicion(&refugio);
+                break;
+            case 7: {
+                int tipo = 0;
+                int cantidad = 0;
+                printf("Tipo de perdida (1=Agua, 2=Comida, 3=Medicamentos, 4=Municiones): ");
+                if (scanf("%d", &tipo) != 1) {
+                    limpiar_buffer();
+                    printf("Tipo invalido.\n");
+                    break;
+                }
+                printf("Cantidad perdida: ");
+                if (scanf("%d", &cantidad) != 1) {
+                    limpiar_buffer();
+                    printf("Cantidad invalida.\n");
+                    break;
+                }
+                limpiar_buffer();
+                perder_recurso(&refugio, tipo, cantidad);
+                break;
+            }
+            case 8:
+                mostrar_historial(&refugio);
+                break;
+            case 9:
+                evento_aleatorio(&refugio);
+                break;
+            case 10:
+                refugio.dia_actual++;
+                printf("Ahora es el dia %d.\n", refugio.dia_actual);
+                break;
+            case 11:
+                guardar_partida(&refugio);
+                break;
+            case 0:
+                guardar_partida(&refugio);
+                printf("Saliendo del refugio...\n");
+                break;
+            default:
+                printf("Opcion no valida.\n");
+                break;
+        }
+    } while (opcion != 0);
 
-    free(refugio.lista);
-    refugio.lista = NULL;
-    free(refugio.historial);
-    refugio.historial = NULL;
+    liberar_refugio(&refugio);
     return 0;
 }
